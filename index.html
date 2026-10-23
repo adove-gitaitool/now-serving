@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// Shared class results. Paste your Firebase web app config here (Project settings > Your apps > Config).
+// Leave it null and the game runs in solo mode: everything works except the class results board.
+const FIREBASE_CONFIG = null;
+if (FIREBASE_CONFIG && window.firebase) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  window.NS_STORE = firebase.firestore();
+}
+</script>
+</head>
+<body>
+<title>Now Serving</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: phone-first single column built around a deli "take-a-number" counter with an LED board; class results widen to two columns for the projector */
+:root{
+  --bg:#EDF0EB; --surface:#FFFFFF; --ink:#18211D; --muted:#56635D; --line:#D2D9D3;
+  --panel:#1B2420; --panel-ink:#C9D3CD; --led:#FFB547; --led-dim:#5A4826;
+  --accent:#C2432A; --accent-ink:#FFFFFF; --you:#F4F7F5;
+  --s-all:#1F6F8B; --seg:#9AA9A2; --long:#1F6F8B; --short:#D7DED9;
+  --good:#2C7A4B; --bad:#B23A2E;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-led:"Share Tech Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101513; --surface:#19201D; --ink:#E6ECE8; --muted:#9BA9A2; --line:#2B3530;
+  --panel:#080B0A; --panel-ink:#AEBAB3; --led:#FFB547; --led-dim:#46381E;
+  --accent:#F07150; --accent-ink:#1A0D08;
+  --s-all:#5AAFCE; --seg:#56645D; --long:#5AAFCE; --short:#36423C;
+  --good:#61C58B; --bad:#F27B6C; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#101513; --surface:#19201D; --ink:#E6ECE8; --muted:#9BA9A2; --line:#2B3530;
+  --panel:#080B0A; --panel-ink:#AEBAB3; --led:#FFB547; --led-dim:#46381E;
+  --accent:#F07150; --accent-ink:#1A0D08;
+  --s-all:#5AAFCE; --seg:#56645D; --long:#5AAFCE; --short:#36423C;
+  --good:#61C58B; --bad:#F27B6C; color-scheme:dark }
+
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--ink);font:400 16px/1.5 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.wrap.wide{max-width:1040px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(40px,11vw,64px);font-weight:900;font-stretch:125%;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:800;font-stretch:112%}
+h3{font-size:17px;font-weight:700;font-stretch:100%}
+p{margin:0}
+.muted{color:var(--muted)}
+.eyebrow{font:600 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button{font:600 16px/1 var(--f-body);cursor:pointer;border-radius:10px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);padding:14px 18px;min-height:48px}
+button.primary{background:var(--ink);color:var(--bg)}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input[type=text]{font:500 18px var(--f-body);padding:12px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);width:100%;box-sizing:border-box}
+label{font-weight:600;font-size:14px;display:block;margin-bottom:6px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.row>*{flex:1 1 0;min-width:0}
+.note{font-size:13px;color:var(--muted)}
+.linkbtn{background:none;border:0;padding:0;min-height:0;color:var(--muted);text-decoration:underline;font-weight:500;font-size:14px}
+
+/* Ticket stub on the join screen */
+.ticket{display:flex;align-items:stretch;background:var(--accent);color:var(--accent-ink);border-radius:12px;overflow:hidden;align-self:flex-start}
+.ticket .stub{padding:10px 14px;border-right:2px dashed currentColor;font:600 11px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center}
+.ticket .big{padding:6px 16px;font:400 34px/1.1 var(--f-led)}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fact{border-top:2px solid var(--ink);padding-top:8px}
+.fact b{display:block;font:600 26px/1.1 var(--f-mono)}
+.fact span{font-size:13px;color:var(--muted)}
+
+/* The counter board */
+.board{background:var(--panel);color:var(--panel-ink);border-radius:16px;padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.board-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.led-label{font:600 10px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--panel-ink);opacity:.8;margin-bottom:4px}
+.led{font:400 46px/1 var(--f-led);color:var(--led);text-shadow:0 0 12px color-mix(in srgb,var(--led) 55%,transparent)}
+.led.small{font-size:26px}
+.lane{display:flex;align-items:center;gap:6px;min-height:44px;border-top:1px solid color-mix(in srgb,var(--panel-ink) 25%,transparent);padding-top:12px;flex-wrap:wrap}
+.counter{font:600 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;border:1.5px solid var(--panel-ink);border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:8px}
+.tok{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:600 11px var(--f-mono);background:var(--led-dim);color:var(--led);flex:none}
+.tok.serving{background:var(--accent);color:var(--accent-ink)}
+.tok.you{background:transparent;border:2px solid var(--you);color:var(--you);font-size:10px}
+.tok.empty{background:transparent;border:1.5px dashed var(--panel-ink);color:var(--panel-ink)}
+.more{font:600 12px var(--f-mono);color:var(--panel-ink)}
+.counter.busy{border-color:var(--accent);color:var(--you)}
+.strip-wrap{border-top:1px solid color-mix(in srgb,var(--panel-ink) 25%,transparent);padding-top:10px}
+.strip-cap{font-size:12px;color:var(--panel-ink);margin-bottom:4px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+
+.hud{display:flex;justify-content:space-between;align-items:baseline}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice button{min-height:64px;font-size:18px}
+.choice button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+input[type=range]{width:100%;accent-color:var(--accent);height:32px}
+.verdict{display:flex;align-items:center;gap:10px;font:800 22px/1.1 var(--f-display);font-stretch:112%}
+.verdict .pill{font:600 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;padding:6px 10px;border-radius:999px;color:var(--surface)}
+.pill.good{background:var(--good)} .pill.bad{background:var(--bad)}
+.split{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.split div{border-top:1px solid var(--line);padding-top:6px}
+.split b{display:block;font:600 22px var(--f-mono)}
+.split span{font-size:12px;color:var(--muted)}
+.why{font-size:14px;color:var(--muted);border-left:3px solid var(--accent);padding-left:10px}
+
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+th:first-child,td:first-child{text-align:left}
+.tbl{overflow-x:auto}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.tile b{display:block;font:600 34px/1.1 var(--f-mono)}
+.tile span{font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid2>*{min-width:0}
+.headline{font:800 clamp(22px,4vw,34px)/1.15 var(--f-display);font-stretch:108%;text-wrap:balance}
+.headline em{font-style:normal;color:var(--accent)}
+.code{font:400 clamp(48px,12vw,96px)/1 var(--f-led);color:var(--led);background:var(--panel);border-radius:14px;padding:10px 20px;letter-spacing:.06em;align-self:flex-start}
+ol.lb{margin:0;padding:0;list-style:none;counter-reset:lb}
+ol.lb li{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);counter-increment:lb}
+ol.lb li::before{content:counter(lb);font:600 13px var(--f-mono);color:var(--muted);width:24px}
+ol.lb li span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ol.lb li.me{font-weight:600;color:var(--accent)}
+.empty-state{padding:24px;text-align:center;color:var(--muted);border:1.5px dashed var(--line);border-radius:14px}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font:500 12px/1.3 var(--f-body);padding:6px 8px;border-radius:6px;z-index:20;max-width:220px}
+.hit{fill:transparent;cursor:default}
+.spread{display:flex;flex-direction:column;gap:8px}
+.spread-row{display:grid;grid-template-columns:64px 1fr 92px;gap:10px;align-items:center;font-size:14px}
+.spread-row .bar{height:22px;background:var(--short);border-radius:5px;overflow:hidden}
+.spread-row .bar i{display:block;height:100%;background:var(--long);border-radius:5px}
+.spread-row span:last-child{color:var(--muted);text-align:right;white-space:nowrap}
+.qr-box{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.qr-box svg{width:200px;height:200px;border-radius:8px}
+.qr-box .note{word-break:break-all;max-width:260px}
+.waf-head{font:800 21px/1.2 var(--f-display);font-stretch:106%;text-wrap:balance}
+.waf-head em{font-style:normal;color:var(--long)}
+#histBox:not([hidden]){display:flex;flex-direction:column;gap:14px}
+#histBox .legend{gap:6px 16px}
+.waffles{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.waf{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.waf svg{max-width:240px}
+.waf figcaption{font-size:13px;font-weight:600;line-height:1.3;min-height:2.6em}
+.waf b{font:600 30px/1 var(--f-mono);color:var(--long)}
+.waf b small{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px}
+
+
+@media (max-width:760px){.tiles{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+@media (max-width:380px){.split b{font-size:18px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="tip" hidden></div>
+
+<!-- JOIN -->
+<section id="v-join" class="wrap">
+  <div class="ticket"><div class="stub">Take a<br>number</div><div class="big">#01</div></div>
+  <h1>Now Serving</h1>
+  <p>You walk into a shop with one counter. Someone is already being served. <strong>Will they take longer or shorter than the average customer?</strong> Play 5 rounds and see how the class does.</p>
+  <div class="facts">
+    <div class="fact"><b>10 min</b><span>average service time per customer</span></div>
+    <div class="fact"><b>12 min</b><span>average time between arrivals</span></div>
+  </div>
+  <p class="note">Both times are exponential with one server.</p>
+  <form id="joinForm" class="card" novalidate>
+    <div><label for="nameIn">Nickname</label><input type="text" id="nameIn" maxlength="20" autocomplete="off" placeholder="e.g. Little's Law"></div>
+    <div><label for="roomIn">Room code</label><input type="text" id="roomIn" maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="From your instructor"></div>
+    <button class="primary" id="startBtn" type="submit">Take a number</button>
+    <p class="note" id="joinMsg"></p>
+  </form>
+  <button class="linkbtn" id="toHost" type="button">Instructor view</button>
+</section>
+
+<!-- PLAY -->
+<section id="v-play" class="wrap" hidden>
+  <div class="hud"><span class="eyebrow" id="roundLbl">Round 1 of 5</span><span class="eyebrow num" id="scoreLbl">0 pts</span></div>
+  <div class="board" aria-live="polite">
+    <div class="board-top">
+      <div><div class="led-label">Now serving</div><div class="led num" id="ledServing">--</div></div>
+      <div style="text-align:right"><div class="led-label">Clock</div><div class="led small num" id="ledClock">9:00</div></div>
+    </div>
+    <div class="lane" id="lane"></div>
+    <div class="strip-wrap">
+      <div class="strip-cap" id="stripCap">Finished customers so far. Each bar is one service, sized by its length.</div>
+      <svg id="strip" viewBox="0 0 400 74" role="img" aria-label="Timeline of service times"></svg>
+    </div>
+  </div>
+
+  <div class="card" id="askCard" hidden>
+    <p><strong>You're ticket <span id="youTicket" class="num"></span>.</strong> Think about the customer at the counter right now. Will their <strong>total</strong> service time be shorter or longer than the 10-minute average?</p>
+    <div class="choice">
+      <button type="button" data-dir="shorter" aria-pressed="false">Shorter</button>
+      <button type="button" data-dir="longer" aria-pressed="false">Longer</button>
+    </div>
+    <p class="note">Tap to lock in your answer. Each right answer is worth 100 points.</p>
+  </div>
+
+  <div class="card" id="revealCard" hidden>
+    <div class="verdict"><span id="vText"></span><span class="pill" id="vPill"></span></div>
+    <div class="split">
+      <div><b id="rTotal" class="num"></b><span>their total time</span></div>
+      <div><b id="rBefore" class="num"></b><span>already served when you walked in</span></div>
+      <div><b id="rAfter" class="num"></b><span>left after you arrived</span></div>
+    </div>
+    <p class="why" id="rWhy"></p>
+    <button class="primary" id="nextBtn" type="button">Next round</button>
+  </div>
+</section>
+
+<!-- SUMMARY -->
+<section id="v-sum" class="wrap" hidden>
+  <span class="eyebrow">Your shift is over</span>
+  <h2 id="sumHead"></h2>
+  <p id="sumRank" class="muted"></p>
+  <div class="card">
+    <div class="tbl"><table id="sumTable"></table></div>
+    <p id="sumAvg"></p>
+  </div>
+  <div class="card">
+    <h3>Run it 1,000 times</h3>
+    <p class="muted" style="font-size:14px">Simulate a long day at this counter and drop in 1,000 times. Compare every customer with the customers being served when you arrive.</p>
+    <button id="runBtn" type="button">Run 1,000 arrivals</button>
+    <div id="histBox" hidden>
+      <p class="waf-head" id="wHead"></p>
+      <div class="waffles">
+        <figure class="waf">
+          <figcaption>Pick any customer at random</figcaption>
+          <b id="wA" class="num"></b>
+          <svg id="wafA" viewBox="0 0 120 120" role="img"></svg>
+          <span id="wAavg" class="note"></span>
+        </figure>
+        <figure class="waf">
+          <figcaption>Walk in and look at the customer being served</figcaption>
+          <b id="wF" class="num"></b>
+          <svg id="wafF" viewBox="0 0 120 120" role="img"></svg>
+          <span id="wFavg" class="note"></span>
+        </figure>
+      </div>
+      <div class="legend"><span><i style="background:var(--long)"></i>Longer than the 10-min average</span><span><i style="background:var(--short)"></i>10 min or shorter</span></div>
+      <p class="why" id="histWhy"></p>
+    </div>
+  </div>
+  <div class="row">
+    <button class="primary" id="toClass" type="button">See class results</button>
+    <button id="againBtn" type="button">Play again</button>
+  </div>
+</section>
+
+<!-- CLASS / HOST -->
+<section id="v-class" class="wrap wide" hidden>
+  <div class="row" style="align-items:flex-end">
+    <div style="flex:2 1 280px">
+      <span class="eyebrow" id="clsEyebrow">Class results</span>
+      <h2 style="margin-top:6px">Who did you find at the counter?</h2>
+    </div>
+    <div id="hostBox" hidden style="flex:1 1 220px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+      <span class="eyebrow">Room code</span>
+      <div class="code" id="hostCode">----</div>
+      <div id="qrBox" class="qr-box" hidden>
+        <svg id="qr" role="img" aria-label="QR code for this room"></svg>
+        <span class="note num" id="qrUrl"></span>
+      </div>
+      <div class="row" style="width:100%">
+        <button type="button" id="newRoom">New room</button>
+        <button type="button" id="toPlay">Play this room</button>
+      </div>
+    </div>
+  </div>
+  <p class="note" id="hostHelp" hidden>Players open this page and type the room code, or use the page link with <span class="num" id="hostHash"></span> at the end. Each class or section gets its own code, so starting a new room gives you a clean board.</p>
+  <div id="clsEmpty" class="empty-state">Waiting for players. Results appear here live as each round is locked in.</div>
+  <div id="clsBody" hidden style="display:flex;flex-direction:column;gap:16px">
+    <p class="headline" id="clsHeadline"></p>
+    <div class="tiles" id="clsTiles"></div>
+    <div class="card">
+      <h3>Who was at the counter when you walked in?</h3>
+      <div class="waffles">
+        <figure class="waf">
+          <figcaption>Any customer, picked at random</figcaption>
+          <b class="num">37%<small>longer</small></b>
+          <svg id="cgA" viewBox="0 0 120 120" role="img" aria-label="37 of 100 longer than 10 minutes"></svg>
+          <span class="note">Expected share for exponential times with a 10-min average</span>
+        </figure>
+        <figure class="waf">
+          <figcaption>The customer being served when you walked in</figcaption>
+          <b class="num" id="cgFn"></b>
+          <svg id="cgF" viewBox="0 0 120 120" role="img"></svg>
+          <span class="note" id="cgFnote"></span>
+        </figure>
+      </div>
+      <div class="legend"><span><i style="background:var(--long)"></i>Longer than the 10-min average</span><span><i style="background:var(--short)"></i>10 min or shorter</span></div>
+    </div>
+    <div class="card">
+      <h3>What you guessed</h3>
+      <p class="muted" id="guessLine" style="font-size:15px"></p>
+      <div class="waffles">
+        <figure class="waf">
+          <figcaption>Round 1 guesses</figcaption>
+          <b class="num" id="cg1n"></b>
+          <svg id="cg1" viewBox="0 0 120 120" role="img"></svg>
+        </figure>
+        <figure class="waf">
+          <figcaption id="cgLcap">Round 5 guesses</figcaption>
+          <b class="num" id="cgLn"></b>
+          <svg id="cgL" viewBox="0 0 120 120" role="img"></svg>
+        </figure>
+      </div>
+      <div class="legend"><span><i style="background:var(--long)"></i>Guessed longer</span><span><i style="background:var(--short)"></i>Guessed shorter</span></div>
+      <p class="note">Each square is one student.</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Spread of scores</h3><p class="note" id="spreadNote"></p><div id="spread" class="spread"></div></div>
+      <div class="card"><h3>Leaderboard</h3><ol class="lb" id="lb"></ol></div>
+    </div>
+    <div class="grid2">
+      <div class="card" style="grid-column:1/-1"><h3>What's going on</h3>
+        <p style="font-size:15px">A long service sits at the counter for more of the clock, so a random arrival is more likely to land inside one. With exponential service times averaging 10 minutes, the customer being served when you walk in takes about <strong>20 minutes</strong> on average, and about <strong>74%</strong> of them take longer than 10.</p>
+        <p class="note">It's the same effect as in the spreadsheet: 6.90 min for all 25 customers, 10.74 min for the ones found being served.</p>
+      </div>
+    </div>
+  </div>
+  <button class="linkbtn" id="backBtn" type="button" style="align-self:flex-start">Back to the game</button>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+const AVG_SVC = 10, AVG_IA = 12, ROUNDS = 5, WINDOW = 300, OPEN = 9 * 60;
+const $ = s => document.querySelector(s);
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const S = { name: '', room: '', pid: null, rounds: [], score: 0, cur: null, dir: null,
+  db: null, canWrite: true, unsub: null, host: false, players: [] };
+
+// ---------- storage helpers (per-viewer conveniences only) ----------
+const ls = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+function localId() {
+  let id = ls.get('ns-pid');
+  if (!id) { id = 'p' + Math.random().toString(36).slice(2, 10); ls.set('ns-pid', id); }
+  return id;
+}
+S.pid = localId();
+
+// ---------- capabilities ----------
+(async () => {
+  try {
+    if (window.NS_STORE) { S.db = window.NS_STORE; return; } // website build: Firestore stands in for the Claude store
+    if (!window.claude?.use) return;
+    const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+    S.db = db;
+    if (user) {
+      try { const id = await user.id(); if (id) S.pid = String(id).replace(/[^A-Za-z0-9_\-.~:@+]/g, '_'); } catch {}
+      try { if (user.can && (await user.can('data.write')) === false) S.canWrite = false; } catch {}
+    }
+  } catch {}
+  joinNote();
+  if (S.room && !$('#v-class').hidden) subscribe(S.room);
+})();
+function joinNote() {
+  $('#joinMsg').textContent = !S.db
+    ? 'Solo mode: class results are not available in this view. You can still play.'
+    : (!S.canWrite ? 'Your account can view class results but cannot add to them.' : '');
+}
+
+// ---------- simulation ----------
+const expRand = m => -m * Math.log(1 - Math.random());
+function simulate(horizon) {
+  const cs = []; let t = 0, free = 0;
+  while (t < horizon) {
+    const svc = expRand(AVG_SVC), start = Math.max(t, free), fin = start + svc;
+    cs.push({ n: cs.length + 1, arr: t, svc, start, fin });
+    free = fin; t += expRand(AVG_IA);
+  }
+  return cs;
+}
+function makeRound() {
+  for (;;) {
+    const cs = simulate(WINDOW + 60);
+    const T = 100 + Math.random() * 120;
+    const found = cs.find(c => c.start <= T && T < c.fin);
+    if (!found) continue; // counter was empty: walk in again
+    return { cs, T, found, ticket: cs.filter(c => c.arr <= T).length + 1 };
+  }
+}
+
+// ---------- formatting ----------
+const pad = n => String(n).padStart(2, '0');
+const clock = m => { const t = OPEN + m; let h = Math.floor(t / 60) % 12 || 12; return h + ':' + pad(Math.floor(t % 60)); };
+const fm = (x, d = 1) => x.toFixed(d);
+
+// ---------- views ----------
+function show(id) {
+  for (const v of ['v-join', 'v-play', 'v-sum', 'v-class']) $('#' + v).hidden = v !== id;
+  window.scrollTo(0, 0);
+}
+
+// ---------- join ----------
+const hash = location.hash.slice(1);
+if (/^[A-Za-z0-9]{3,10}$/.test(hash) && hash.toLowerCase() !== 'host') $('#roomIn').value = hash.toUpperCase();
+$('#nameIn').value = ls.get('ns-name') || '';
+$('#joinForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('#nameIn').value.trim();
+  const room = $('#roomIn').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!name) { $('#joinMsg').textContent = 'Add a nickname so you show up on the leaderboard.'; $('#nameIn').focus(); return; }
+  if (room.length < 3) { $('#joinMsg').textContent = 'Enter the room code your instructor gave you (at least 3 letters or numbers).'; $('#roomIn').focus(); return; }
+  S.name = name; S.room = room; ls.set('ns-name', name);
+  startGame();
+});
+
+function startGame() {
+  S.rounds = []; S.score = 0;
+  show('v-play');
+  nextRound();
+}
+
+// ---------- play ----------
+function nextRound() {
+  S.cur = makeRound(); S.dir = null;
+  const r = S.cur;
+  $('#roundLbl').textContent = `Round ${S.rounds.length + 1} of ${ROUNDS}`;
+  $('#scoreLbl').textContent = S.score + ' pts';
+  $('#askCard').hidden = true; $('#revealCard').hidden = true;
+  document.querySelectorAll('.choice button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  $('#stripCap').textContent = 'Finished customers so far. Each bar is one service, sized by its length.';
+  animate(0, r.T, 2600, t => renderAt(r, t, false)).then(() => {
+    renderAt(r, r.T, false, true);
+    $('#youTicket').textContent = '#' + r.ticket;
+    $('#stripCap').textContent = 'Red is the customer being served, so far. How far past YOU will it go?';
+    $('#askCard').hidden = false;
+    $('#askCard').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+  });
+}
+
+function animate(a, b, dur, fn) {
+  return new Promise(res => {
+    if (reduce) { fn(b); return res(); }
+    const t0 = performance.now();
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      fn(a + (b - a) * p);
+      p < 1 ? requestAnimationFrame(step) : res();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function renderAt(r, t, reveal, youHere) {
+  const serving = r.cs.find(c => c.start <= t && t < c.fin);
+  const waiting = r.cs.filter(c => c.arr <= t && c.start > t);
+  $('#ledServing').textContent = serving ? '#' + pad(serving.n) : '--';
+  $('#ledClock').textContent = clock(t);
+  // lane
+  const lane = $('#lane'); lane.textContent = '';
+  const ctr = document.createElement('div'); ctr.className = 'counter' + (serving ? ' busy' : ''); ctr.append(serving ? 'Being served' : 'Counter');
+  const st = document.createElement('div'); st.className = 'tok ' + (serving ? 'serving' : 'empty');
+  st.textContent = serving ? serving.n : '·'; ctr.append(st); lane.append(ctr);
+  // you stand behind people who arrived before you; keep the line short enough that YOU stays on the first row
+  const here = youHere || reveal;
+  const ahead = here ? waiting.filter(w => w.arr <= r.T) : waiting, behind = here ? waiting.filter(w => w.arr > r.T) : [];
+  const group = (list, max) => {
+    for (const w of list.slice(0, max)) { const d = document.createElement('div'); d.className = 'tok'; d.textContent = w.n; lane.append(d); }
+    if (list.length > max) { const m = document.createElement('span'); m.className = 'more'; m.textContent = '+' + (list.length - max); lane.append(m); }
+  };
+  group(ahead, here ? 3 : 5);
+  if (here) { const y = document.createElement('div'); y.className = 'tok you'; y.textContent = 'YOU'; lane.append(y); }
+  group(behind, 1);
+  drawStrip(r, t, reveal);
+}
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function drawStrip(r, t, reveal) {
+  const svg = $('#strip'); svg.textContent = '';
+  // window: the last two hours before you arrive, plus a little after
+  const w0 = Math.max(0, r.T - 120), w1 = Math.max(r.T + 40, r.reveal1 || 0);
+  const x0 = 6, x1 = 394, x = m => x0 + ((m - w0) / (w1 - w0)) * (x1 - x0);
+  svg.append(el('line', { x1: x0, x2: x1, y1: 50, y2: 50, stroke: 'var(--panel-ink)', 'stroke-opacity': .3 }));
+  for (let m = Math.ceil(w0 / 30) * 30; m <= w1; m += 30) {
+    svg.append(el('text', { x: x(m), y: 66, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--panel-ink)', 'font-family': 'var(--f-mono)' }, clock(m)));
+  }
+  for (const c of r.cs) {
+    const isFound = c === r.found && t >= r.T - 1e-9; // shown from the moment you walk in
+    if (c.start > t || c.fin < w0) continue;
+    if (!isFound && c.fin > t) continue; // hide the service in progress
+    // before the reveal, a thin marker only, so its length gives nothing away
+    const hint = isFound && !reveal;
+    const s = hint ? r.T : Math.max(c.start, w0), end = isFound ? Math.min(c.fin, t) : c.fin;
+    const w = hint ? 4 : Math.max(1, x(end) - x(s) - 1.5);
+    if (hint) { svg.append(el('rect', { x: x(r.T) - 5, y: 20, width: w, height: 26, rx: 2, fill: 'var(--accent)' })); continue; }
+    svg.append(el('rect', { x: x(s), y: 20, width: w, height: 26, rx: 3,
+      fill: isFound ? 'var(--accent)' : 'var(--seg)' }));
+    if (w > 22 && (!isFound || c.fin - end < 0.01)) {
+      svg.append(el('text', { x: x(s) + w / 2, y: 37, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600,
+        fill: isFound ? 'var(--accent-ink)' : 'var(--panel)', 'font-family': 'var(--f-mono)' }, Math.round(c.svc) + 'm'));
+    }
+  }
+  if (t >= r.T - 1e-9) {
+    const xa = x(r.T);
+    if (!reveal) svg.append(el('text', { x: xa + 6, y: 38, 'font-size': 13, 'font-weight': 700, fill: 'var(--accent)', 'font-family': 'var(--f-mono)' }, '?'));
+    svg.append(el('line', { x1: xa, x2: xa, y1: 12, y2: 50, stroke: 'var(--you)', 'stroke-width': 2 }));
+    svg.append(el('text', { x: xa, y: 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: 'var(--you)', 'font-family': 'var(--f-mono)' }, 'YOU'));
+  }
+}
+
+// choice + estimate
+document.querySelectorAll('.choice button').forEach(b => b.addEventListener('click', () => {
+  if ($('#askCard').hidden || S.dir) return; // ignore double taps
+  S.dir = b.dataset.dir;
+  b.setAttribute('aria-pressed', 'true');
+  lockIn();
+}));
+
+function lockIn() {
+  const r = S.cur, actual = r.found.svc;
+  const truth = actual > AVG_SVC ? 'longer' : 'shorter';
+  const dirPts = S.dir === truth ? 100 : 0;
+  const pts = dirPts;
+  S.score += pts;
+  S.rounds.push({ dir: S.dir, actual: +actual.toFixed(2), pts });
+  save();
+  $('#askCard').hidden = true;
+  if (r.found.fin > r.T + 35) r.reveal1 = r.found.fin + 5;
+  $('#stripCap').textContent = 'The customer being served is highlighted in red. Long services cover more of the clock, so more people arrive during them and see them at the counter.';
+  const done = r.found.fin - 1e-6; // keep them at the counter in the final frame
+  animate(r.T, done, 2200, t => renderAt(r, t, true)).then(() => {
+    renderAt(r, done, true);
+    $('#vText').textContent = `They took ${fm(actual)} min`;
+    const ok = dirPts > 0;
+    $('#vPill').textContent = ok ? 'Right · +100' : 'Wrong · +0';
+    $('#vPill').className = 'pill ' + (ok ? 'good' : 'bad');
+    $('#rTotal').textContent = fm(actual) + 'm';
+    $('#rBefore').textContent = fm(r.T - r.found.start) + 'm';
+    $('#rAfter').textContent = fm(r.found.fin - r.T) + 'm';
+    const seen = r.cs.filter(c => c.arr >= r.found.start && c.arr < r.found.fin).length + 1;
+    $('#rWhy').textContent = `You guessed ${S.dir}. The average customer takes 10 min, and this one took ${fm(actual)} min. ${seen === 1 ? 'You were the only person' : seen + ' people, including you,'} walked in while they were being served.`;
+    $('#nextBtn').textContent = S.rounds.length >= ROUNDS ? 'See my results' : 'Next round';
+    $('#scoreLbl').textContent = S.score + ' pts';
+    $('#revealCard').hidden = false;
+    $('#revealCard').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+  });
+}
+$('#nextBtn').addEventListener('click', () => S.rounds.length >= ROUNDS ? summary() : nextRound());
+
+// ---------- saving (one write at a time per document) ----------
+let saving = Promise.resolve();
+function save() {
+  if (!S.db || !S.canWrite) return;
+  const body = { name: S.name, rounds: S.rounds.slice(), score: S.score, done: S.rounds.length >= ROUNDS, updated: Date.now() };
+  saving = saving.then(() => S.db.doc(`rooms/${S.room}/players/${S.pid}`).set(body)).catch(e => {
+    if (e?.code === 'invalid_argument') { S.canWrite = false; joinNote(); }
+  });
+}
+
+// ---------- summary ----------
+function summary() {
+  show('v-sum');
+  $('#sumHead').textContent = `${S.score} points`;
+  const t = $('#sumTable'); t.textContent = '';
+  const hr = t.insertRow(); ['Round', 'Your pick', 'Actual time', 'Pts'].forEach(h => { const th = document.createElement('th'); th.textContent = h; hr.append(th); });
+  S.rounds.forEach((r, i) => {
+    const tr = t.insertRow();
+    [i + 1, r.dir, fm(r.actual) + 'm', r.pts].forEach((v, j) => {
+      const td = tr.insertCell(); td.textContent = v;
+      if (j === 1) td.style.color = (r.actual > AVG_SVC) === (r.dir === 'longer') ? 'var(--good)' : 'var(--bad)';
+    });
+  });
+  const avg = S.rounds.reduce((a, r) => a + r.actual, 0) / S.rounds.length;
+  const longer = S.rounds.filter(r => r.actual > AVG_SVC).length;
+  $('#sumAvg').textContent = `The customers being served when you arrived averaged ${fm(avg)} min, and ${longer} of ${S.rounds.length} took longer than 10. The average customer takes 10 min.`;
+  $('#toClass').hidden = !S.db;
+  $('#sumRank').textContent = S.db ? 'Checking the class leaderboard…' : 'Class results are not available in this view, so your score stays on this phone.';
+  if (S.db) subscribe(S.room);
+}
+$('#againBtn').addEventListener('click', startGame);
+$('#toClass').addEventListener('click', () => openClass(false));
+$('#backBtn').addEventListener('click', () => { S.rounds.length >= ROUNDS ? summary() : show('v-join'); });
+
+// ---------- 1,000 arrivals ----------
+$('#runBtn').addEventListener('click', () => {
+  const cs = simulate(40000);
+  const found = [];
+  while (found.length < 1000) {
+    const T = 200 + Math.random() * 39000;
+    let lo = 0, hi = cs.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; cs[mid].start <= T ? lo = mid : hi = mid - 1; }
+    if (cs[lo].start <= T && T < cs[lo].fin) found.push(cs[lo].svc);
+  }
+  const all = cs.map(c => c.svc);
+  drawOdds(all, found);
+  $('#runBtn').textContent = 'Run it again';
+});
+function drawWaffle(svg, arr, numSel, avgSel, mean) {
+  const n = Math.round(arr.filter(v => v > AVG_SVC).length / arr.length * 100);
+  svg.textContent = '';
+  for (let k = 0; k < 100; k++) {
+    const row = Math.floor(k / 10), col = k % 10;
+    svg.append(el('rect', { x: col * 12 + 1, y: row * 12 + 1, width: 10, height: 10, rx: 2, fill: k < n ? 'var(--long)' : 'var(--short)' }));
+  }
+  svg.setAttribute('aria-label', `${n} of 100 longer than 10 minutes`);
+  svg.dataset.tip = `${n} of 100 took longer than 10 min`;
+  $(numSel).innerHTML = ''; $(numSel).append(n + '%', Object.assign(document.createElement('small'), { textContent: 'longer' }));
+  $(avgSel).textContent = `Average time: ${fm(mean)} min`;
+}
+function drawOdds(all, found) {
+  const mA = all.reduce((a, b) => a + b, 0) / all.length, mF = found.reduce((a, b) => a + b, 0) / found.length;
+  const pF = found.filter(v => v > AVG_SVC).length / found.length * 100;
+  const pA = all.filter(v => v > AVG_SVC).length / all.length * 100;
+  $('#histWhy').textContent = `Most customers are quick: only about ${fm(pA, 0)}% take longer than 10 minutes. But a long service sits at the counter for more of the day, so more people walk in during it. That flips the odds to about ${fm(pF, 0)}% for the customer you see being served.`;
+  drawWaffle($('#wafA'), all, '#wA', '#wAavg', mA);
+  drawWaffle($('#wafF'), found, '#wF', '#wFavg', mF);
+  const nF = Math.round(pF);
+  const h = $('#wHead'); h.textContent = '';
+  h.append('Of 100 people walking in, ', Object.assign(document.createElement('em'), { textContent: String(nF) }), ' find someone at the counter taking longer than average.');
+  $('#histBox').hidden = false;
+}
+
+// ---------- class results ----------
+function subscribe(room) {
+  if (!S.db) return;
+  if (S.unsub && S.subRoom === room) return;
+  if (S.unsub) S.unsub();
+  S.subRoom = room; S.players = [];
+  S.unsub = S.db.collection(`rooms/${room}/players`).onSnapshot(snap => {
+    S.players = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => Array.isArray(p.rounds));
+    renderClass(); renderRank();
+  }, () => { S.unsub = null; });
+}
+function renderRank() {
+  if ($('#v-sum').hidden) return;
+  const ps = S.players.slice().sort((a, b) => b.score - a.score);
+  const i = ps.findIndex(p => p.id === S.pid);
+  $('#sumRank').textContent = i >= 0 ? `You're #${i + 1} of ${ps.length} in room ${S.room}.` : `Room ${S.room}: ${ps.length} players so far.`;
+}
+function openClass(host) {
+  S.host = host;
+  $('#hostBox').hidden = !host; $('#hostHelp').hidden = !host;
+  $('#clsEyebrow').textContent = host ? 'Instructor view · live' : `Class results · room ${S.room}`;
+  $('#backBtn').hidden = host;
+  show('v-class');
+  if (!S.db) {
+    $('#clsEmpty').textContent = 'Class results need the shared results store, which is not available in this view.';
+    $('#clsEmpty').hidden = false; $('#clsBody').hidden = true;
+    return;
+  }
+  subscribe(S.room);
+  renderClass();
+}
+function setHostRoom(code) {
+  S.room = code; ls.set('ns-host-room', code);
+  $('#hostCode').textContent = code; $('#hostHash').textContent = '#' + code;
+  drawQR(code);
+  S.players = []; renderClass();
+  if (S.db) subscribe(code);
+}
+// QR code for the room link, only where the page's own address is the one students should open
+function drawQR(code) {
+  const box = $('#qrBox');
+  if (window.claude || typeof qrcode !== 'function') { box.hidden = true; return; }
+  const url = location.origin + location.pathname + '#' + code;
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  const n = qr.getModuleCount(), svg = $('#qr'); svg.textContent = '';
+  svg.setAttribute('viewBox', `-2 -2 ${n + 4} ${n + 4}`);
+  svg.append(el('rect', { x: -2, y: -2, width: n + 4, height: n + 4, fill: '#FFFFFF' }));
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) svg.append(el('rect', { x: c, y: r, width: 1.02, height: 1.02, fill: '#000000' }));
+  $('#qrUrl').textContent = url;
+  box.hidden = false;
+}
+function newCode() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  let s = ''; for (let i = 0; i < 3; i++) s += A[Math.floor(Math.random() * A.length)];
+  return s + Math.floor(10 + Math.random() * 90);
+}
+$('#newRoom').addEventListener('click', () => setHostRoom(newCode()));
+$('#toPlay').addEventListener('click', () => { S.host = false; $('#roomIn').value = S.room; show('v-join'); });
+$('#toHost').addEventListener('click', () => { setHostRoom(ls.get('ns-host-room') || newCode()); openClass(true); });
+
+function gridOf(svg, filled, total) {
+  const rows = Math.max(1, Math.ceil(total / 10));
+  svg.setAttribute('viewBox', `0 0 120 ${rows * 12}`);
+  svg.textContent = '';
+  for (let k = 0; k < total; k++) {
+    svg.append(el('rect', { x: (k % 10) * 12 + 1, y: Math.floor(k / 10) * 12 + 1, width: 10, height: 10, rx: 2, fill: k < filled ? 'var(--long)' : 'var(--short)' }));
+  }
+  svg.setAttribute('aria-label', `${filled} of ${total}`);
+}
+function stat(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
+function renderClass() {
+  if ($('#v-class').hidden || !S.db) return;
+  const ps = S.players;
+  $('#clsEmpty').hidden = ps.length > 0; $('#clsBody').hidden = ps.length === 0;
+  if (!ps.length) { $('#clsEmpty').textContent = 'Waiting for players. Results appear here live as each round is locked in.'; return; }
+  const all = ps.flatMap(p => p.rounds);
+  const byRound = [...Array(ROUNDS)].map((_, i) => ps.map(p => p.rounds[i]).filter(Boolean));
+  const pActual = all.filter(r => r.actual > AVG_SVC).length / all.length * 100;
+  const avgFound = stat(all.map(r => r.actual));
+  const pRight = all.filter(r => (r.actual > AVG_SVC) === (r.dir === 'longer')).length / all.length * 100;
+
+  $('#clsHeadline').innerHTML = '';
+  const h = $('#clsHeadline');
+  h.append(`Of the ${all.length} times you walked in, `, Object.assign(document.createElement('em'), { textContent: `${fm(pActual, 0)}%` }),
+    ` found someone at the counter taking longer than average.`);
+
+  const tiles = $('#clsTiles'); tiles.textContent = '';
+  [[ps.length, 'players'], [all.length, 'arrivals'], [fm(avgFound) + 'm', 'avg time of customer being served (any customer: 10m)'], [fm(pRight, 0) + '%', 'answers right']].forEach(([v, l]) => {
+    const d = document.createElement('div'); d.className = 'tile';
+    const b = document.createElement('b'); b.textContent = v; const s = document.createElement('span'); s.textContent = l;
+    d.append(b, s); tiles.append(d);
+  });
+
+  // grids: one square per arrival (scaled to 100 squares once there are more than 200)
+  const nL = all.filter(r => r.actual > AVG_SVC).length;
+  gridOf($('#cgA'), 37, 100);
+  if (all.length <= 200) gridOf($('#cgF'), nL, all.length); else gridOf($('#cgF'), Math.round(nL / all.length * 100), 100);
+  $('#cgFn').innerHTML = ''; $('#cgFn').append(fm(pActual, 0) + '%', Object.assign(document.createElement('small'), { textContent: 'longer' }));
+  $('#cgFnote').textContent = all.length <= 200 ? `${nL} of ${all.length} arrivals, one square each` : `${nL} of ${all.length} arrivals, shown per 100`;
+  const last = byRound.reduce((k, rs, i) => rs.length ? i : k, 0);
+  const g1 = byRound[0], gL = byRound[last];
+  const n1 = g1.filter(r => r.dir === 'longer').length, nLst = gL.filter(r => r.dir === 'longer').length;
+  gridOf($('#cg1'), n1, g1.length); gridOf($('#cgL'), nLst, gL.length);
+  const pc = (a, b) => b ? Math.round(a / b * 100) : 0;
+  $('#cg1n').innerHTML = ''; $('#cg1n').append(pc(n1, g1.length) + '%', Object.assign(document.createElement('small'), { textContent: 'longer' }));
+  $('#cgLn').innerHTML = ''; $('#cgLn').append(pc(nLst, gL.length) + '%', Object.assign(document.createElement('small'), { textContent: 'longer' }));
+  $('#cgLcap').textContent = `Round ${last + 1} guesses`;
+  $('#guessLine').textContent = last === 0
+    ? `${pc(n1, g1.length)}% guessed "longer" in round 1. The answer was "longer" ${fm(pActual, 0)}% of the time.`
+    : `${pc(n1, g1.length)}% guessed "longer" in round 1 and ${pc(nLst, gL.length)}% in round ${last + 1}. The answer was "longer" ${fm(pActual, 0)}% of the time.`;
+
+  // spread of final scores (finished players only)
+  const done = ps.filter(p => p.done);
+  const sp = $('#spread'); sp.textContent = '';
+  $('#spreadNote').textContent = done.length ? `${done.length} finished ${done.length === 1 ? 'player' : 'players'}` : 'Scores appear here as players finish all 5 rounds.';
+  if (done.length) for (let pts = ROUNDS * 100; pts >= 0; pts -= 100) {
+    const n = done.filter(p => p.score === pts).length, share = n / done.length * 100;
+    const row = document.createElement('div'); row.className = 'spread-row';
+    row.dataset.tip = `${n} of ${done.length} scored ${pts}`;
+    const a = document.createElement('span'); a.className = 'num'; a.textContent = pts + ' pts';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const fill = document.createElement('i'); fill.style.width = share + '%'; bar.append(fill);
+    const b = document.createElement('span'); b.className = 'num'; b.textContent = `${fm(share, 0)}% · ${n}`;
+    row.append(a, bar, b); sp.append(row);
+  }
+
+  const lb = $('#lb'); lb.textContent = '';
+  ps.slice().sort((a, b) => b.score - a.score).slice(0, 10).forEach(p => {
+    const li = document.createElement('li'); if (p.id === S.pid && !S.host) li.className = 'me';
+    const n = document.createElement('span'); n.textContent = String(p.name || 'Player').slice(0, 20) + (p.done ? '' : ' (playing)');
+    const sc = document.createElement('span'); sc.className = 'num'; sc.textContent = p.score;
+    li.append(n, sc); lb.append(li);
+  });
+}
+
+// ---------- tooltips ----------
+const tip = $('#tip');
+document.addEventListener('pointermove', e => {
+  const t = e.target.closest?.('[data-tip]');
+  if (!t) { tip.hidden = true; return; }
+  tip.textContent = t.dataset.tip; tip.hidden = false;
+  const x = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + 'px'; tip.style.top = (e.clientY - tip.offsetHeight - 10) + 'px';
+});
+document.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+// ---------- boot ----------
+joinNote();
+if (hash.toLowerCase() === 'host') { setHostRoom(ls.get('ns-host-room') || newCode()); openClass(true); }
+})();
+</script>
+
+</body>
+</html>
