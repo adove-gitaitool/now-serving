@@ -195,6 +195,12 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
 .qr-box{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .qr-box svg{width:200px;height:200px;border-radius:8px}
 .qr-box .note{word-break:break-all;max-width:260px}
+.drop{display:flex;flex-direction:column;gap:10px}
+.drop-svg{max-width:720px}
+.drop-btns{max-width:420px}
+.drop-out{font-size:15px;min-height:1.5em}
+.drop-out b{font-family:var(--f-mono)}
+.why-math{display:flex;flex-direction:column;gap:8px;font-size:15px;border-top:1px solid var(--line);padding-top:12px}
 .waf-head{font:800 21px/1.2 var(--f-display);font-stretch:106%;text-wrap:balance}
 .waf-head em{font-style:normal;color:var(--long)}
 #histBox:not([hidden]){display:flex;flex-direction:column;gap:14px}
@@ -217,6 +223,7 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
 <!-- JOIN -->
 <section id="v-join" class="wrap">
   <div class="ticket"><div class="stub">Take a<br>number</div><div class="big">#01</div></div>
+  <span class="eyebrow">A game about the inspection paradox</span>
   <h1>Now Serving</h1>
   <p>You walk into a shop with one counter. Someone is already being served. <strong>Will they take longer or shorter than the average customer?</strong> Play 5 rounds and see how the class does.</p>
   <div class="facts">
@@ -279,6 +286,15 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
     <p id="sumAvg"></p>
   </div>
   <div class="card">
+    <h3>The inspection paradox</h3>
+    <div class="drop" data-drop>
+      <p class="muted" style="font-size:14px">Here are two and a half hours at the counter. Each grey bar is one customer, sized by how long they took. Drop people in at random moments. A red dot lands on the customer that person finds being served; a faded dot found the counter empty.</p>
+      <svg class="drop-svg" viewBox="0 0 400 118" role="img" aria-label="Random arrivals landing on service times"></svg>
+      <div class="row drop-btns"><button type="button" class="primary" data-drop-go>Drop 20 people</button><button type="button" data-drop-new>New day</button></div>
+      <p class="drop-out" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="card">
     <h3>Run it 1,000 times</h3>
     <p class="muted" style="font-size:14px">Simulate a long day at this counter and drop in 1,000 times. Compare every customer with the customers being served when you arrive.</p>
     <button id="runBtn" type="button">Run 1,000 arrivals</button>
@@ -300,6 +316,10 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
       </div>
       <div class="legend"><span><i style="background:var(--long)"></i>Longer than the 10-min average</span><span><i style="background:var(--short)"></i>10 min or shorter</span></div>
       <p class="why" id="histWhy"></p>
+      <div class="why-math">
+      <p><strong>Why about 20 minutes?</strong> A random arrival lands inside a service with a chance proportional to its length. So the average service you find is E[S²] ÷ E[S] = μ + σ²/μ. Exponential times have σ = μ = 10 min, which gives 10 + 100/10 = <strong>20 min</strong>. The more variable the service times, the bigger the gap.</p>
+      <p class="note">The same paradox shows up elsewhere. The average class a student sits in is bigger than the school's average class size, because big classes hold more students. The gap between buses you happen to wait in is longer than the average gap.</p>
+    </div>
     </div>
   </div>
   <div class="row">
@@ -374,8 +394,18 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
       <div class="card"><h3>Leaderboard</h3><ol class="lb" id="lb"></ol></div>
     </div>
     <div class="grid2">
-      <div class="card" style="grid-column:1/-1"><h3>What's going on</h3>
+      <div class="card" style="grid-column:1/-1"><h3>What's going on: the inspection paradox</h3>
         <p style="font-size:15px">A long service sits at the counter for more of the clock, so a random arrival is more likely to land inside one. With exponential service times averaging 10 minutes, the customer being served when you walk in takes about <strong>20 minutes</strong> on average, and about <strong>74%</strong> of them take longer than 10.</p>
+        <div class="drop" data-drop>
+      <p class="muted" style="font-size:14px">Here are two and a half hours at the counter. Each grey bar is one customer, sized by how long they took. Drop people in at random moments. A red dot lands on the customer that person finds being served; a faded dot found the counter empty.</p>
+      <svg class="drop-svg" viewBox="0 0 400 118" role="img" aria-label="Random arrivals landing on service times"></svg>
+      <div class="row drop-btns"><button type="button" class="primary" data-drop-go>Drop 20 people</button><button type="button" data-drop-new>New day</button></div>
+      <p class="drop-out" aria-live="polite"></p>
+    </div>
+        <div class="why-math">
+      <p><strong>Why about 20 minutes?</strong> A random arrival lands inside a service with a chance proportional to its length. So the average service you find is E[S²] ÷ E[S] = μ + σ²/μ. Exponential times have σ = μ = 10 min, which gives 10 + 100/10 = <strong>20 min</strong>. The more variable the service times, the bigger the gap.</p>
+      <p class="note">The same paradox shows up elsewhere. The average class a student sits in is bigger than the school's average class size, because big classes hold more students. The gap between buses you happen to wait in is longer than the average gap.</p>
+    </div>
         <p class="note">It's the same effect as in the spreadsheet: 6.90 min for all 25 customers, 10.74 min for the ones found being served.</p>
       </div>
     </div>
@@ -589,7 +619,7 @@ function lockIn() {
   save();
   $('#askCard').hidden = true;
   if (r.found.fin > r.T + 35) r.reveal1 = r.found.fin + 5;
-  $('#stripCap').textContent = 'The customer being served is highlighted in red. Long services cover more of the clock, so more people arrive during them and see them at the counter.';
+  $('#stripCap').textContent = 'Inspection paradox: long services cover more of the clock, so more people walk in during them. The customer being served is in red.';
   const done = r.found.fin - 1e-6; // keep them at the counter in the final frame
   animate(r.T, done, 2200, t => renderAt(r, t, true)).then(() => {
     renderAt(r, done, true);
@@ -683,6 +713,62 @@ function drawOdds(all, found) {
   h.append('Of 100 people walking in, ', Object.assign(document.createElement('em'), { textContent: String(nF) }), ' find someone at the counter taking longer than average.');
   $('#histBox').hidden = false;
 }
+
+// ---------- inspection paradox demo: random arrivals landing on a day of services ----------
+function initDrop(box) {
+  const svg = box.querySelector('.drop-svg'), out = box.querySelector('.drop-out');
+  const go = box.querySelector('[data-drop-go]'), fresh = box.querySelector('[data-drop-new]');
+  const SPAN = 150, x0 = 4, x1 = 396, x = m => x0 + m / SPAN * (x1 - x0), BAR_Y = 70, BAR_H = 30;
+  let day, drops, busy = false;
+  const newDay = () => {
+    day = simulate(SPAN + 60).filter(c => c.start < SPAN).map(c => ({ ...c, fin: Math.min(c.fin, SPAN), hits: 0 }));
+    drops = [];
+    go.textContent = 'Drop 20 people';
+    out.textContent = 'Which customers do you think will get walked in on?';
+    draw(1);
+  };
+  const draw = p => {
+    svg.textContent = '';
+    for (const c of day) {
+      const w = Math.max(1, x(c.fin) - x(c.start) - 1.5);
+      svg.append(el('rect', { x: x(c.start), y: BAR_Y, width: w, height: BAR_H, rx: 3, fill: 'var(--seg)' }));
+      if (w > 22) svg.append(el('text', { x: x(c.start) + w / 2, y: BAR_Y + 19, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600,
+        fill: 'var(--ink)', 'font-family': 'var(--f-mono)' }, Math.round(c.svc) + 'm'));
+    }
+    for (const d of drops) {
+      const k = Math.max(0, Math.min(1, (p - d.delay) / 0.35)); // each dot falls in its own slot of the animation
+      const y = 6 + (d.land - 6) * k * k;
+      svg.append(el('circle', { cx: x(d.t), cy: y, r: 3.4, fill: d.hit ? 'var(--accent)' : 'var(--muted)', 'fill-opacity': d.hit ? 1 : .5 }));
+    }
+    svg.append(el('text', { x: x0, y: 116, 'font-size': 11, fill: 'var(--muted)', 'font-family': 'var(--f-mono)' }, clock(0)));
+    svg.append(el('text', { x: x1, y: 116, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)', 'font-family': 'var(--f-mono)' }, clock(SPAN)));
+  };
+  const report = () => {
+    const landed = drops.filter(d => d.hit), found = landed.map(d => d.hit.svc);
+    const avgAll = stat(day.map(c => c.svc)), avgFound = stat(found);
+    const longest = day.reduce((a, c) => c.svc > a.svc ? c : a, day[0]);
+    out.textContent = '';
+    const b = t => Object.assign(document.createElement('b'), { textContent: t });
+    out.append(`${landed.length} of ${drops.length} people found someone at the counter. The customers they walked in on averaged `, b(fm(avgFound ?? 0) + ' min'),
+      `, while all ${day.length} customers this stretch averaged `, b(fm(avgAll) + ' min'),
+      `. The longest service (${Math.round(longest.svc)} min) caught ${longest.hits} ${longest.hits === 1 ? 'person' : 'people'}.`);
+  };
+  go.addEventListener('click', () => {
+    if (busy) return; busy = true;
+    const batch = [];
+    for (let i = 0; i < 20; i++) {
+      const t = Math.random() * SPAN, hit = day.find(c => c.start <= t && t < c.fin);
+      const stack = drops.concat(batch).filter(d => d.hit && d.hit === hit && Math.abs(x(d.t) - x(t)) < 7).length;
+      batch.push({ t, hit, land: hit ? BAR_Y - 5 - Math.min(stack, 7) * 7.5 : BAR_Y + BAR_H / 2, delay: i / 20 * 0.65 });
+    }
+    drops.push(...batch); batch.forEach(d => { if (d.hit) d.hit.hits++; });
+    drops.forEach(d => { if (!batch.includes(d)) d.delay = -1; });
+    animate(0, 1, 1600, draw).then(() => { draw(1); report(); go.textContent = 'Drop 20 more'; busy = false; });
+  });
+  fresh.addEventListener('click', () => { if (!busy) newDay(); });
+  newDay();
+}
+document.querySelectorAll('[data-drop]').forEach(initDrop);
 
 // ---------- class results ----------
 function subscribe(room) {
