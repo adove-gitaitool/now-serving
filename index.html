@@ -4,16 +4,63 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-// Shared class results. Paste your Firebase web app config here (Project settings > Your apps > Config).
-// Leave it null and the game runs in solo mode: everything works except the class results board.
-const FIREBASE_CONFIG = null;
-if (FIREBASE_CONFIG && window.firebase) {
-  firebase.initializeApp(FIREBASE_CONFIG);
-  window.NS_STORE = firebase.firestore();
-}
+// Class results on the website go through ntfy.sh, a free public message relay with no accounts.
+// Each finished game is posted to a topic named after the room; the instructor page streams it back.
+// ntfy.sh keeps messages for about 12 hours.
+(() => {
+  const RELAY = 'https://ntfy.sh';
+  const NAMESPACE = 'nowserving-q7k2m9-';
+  const topicFor = path => {
+    const room = path.split('/')[1] || '';
+    return NAMESPACE + room.toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+  const store = {
+    finalOnly: true, // one message per player keeps a class on shared Wi-Fi well under the relay's limits
+    doc(path) {
+      const id = path.split('/')[3];
+      return {
+        async set(body) {
+          const res = await fetch(`${RELAY}/${topicFor(path)}`, { method: 'POST', body: JSON.stringify({ id, ...body }) });
+          if (!res.ok) throw { code: 'unavailable', message: 'Relay returned ' + res.status };
+        }
+      };
+    },
+    collection(path) {
+      return {
+        onSnapshot(next) {
+          const players = new Map();
+          const emit = () => {
+            const docs = [...players.values()].map(p => ({ id: p.id, exists: true, data: () => p }));
+            next({ docs, size: docs.length, empty: !docs.length });
+          };
+          const es = new EventSource(`${RELAY}/${topicFor(path)}/sse?since=all`);
+          es.onmessage = e => {
+            try {
+              const m = JSON.parse(e.data);
+              if (m.event !== 'message') return;
+              const raw = JSON.parse(m.message);
+              if (!raw || typeof raw.id !== 'string' || !Array.isArray(raw.rounds)) return;
+              // anyone can post to a public topic, so keep only well-formed values
+              const rounds = raw.rounds.slice(0, 5).map(r => ({
+                dir: r && r.dir === 'longer' ? 'longer' : 'shorter',
+                actual: Math.max(0, Math.min(500, Number(r && r.actual) || 0)),
+                pts: r && r.pts === 100 ? 100 : 0
+              }));
+              const p = { id: raw.id.slice(0, 64), name: String(raw.name || 'Player').slice(0, 20), rounds,
+                score: rounds.reduce((a, r) => a + r.pts, 0), done: rounds.length === 5, updated: Number(raw.updated) || 0 };
+              const old = players.get(p.id);
+              if (!old || (p.updated || 0) >= (old.updated || 0)) { players.set(p.id, p); emit(); }
+            } catch {}
+          };
+          setTimeout(emit, 1500); // show the empty state if the room has no results yet
+          return () => es.close();
+        }
+      };
+    }
+  };
+  window.NS_STORE = store;
+})();
 </script>
 </head>
 <body>
@@ -567,6 +614,7 @@ $('#nextBtn').addEventListener('click', () => S.rounds.length >= ROUNDS ? summar
 let saving = Promise.resolve();
 function save() {
   if (!S.db || !S.canWrite) return;
+  if (S.db.finalOnly && S.rounds.length < ROUNDS) return; // website relay: one message per finished game
   const body = { name: S.name, rounds: S.rounds.slice(), score: S.score, done: S.rounds.length >= ROUNDS, updated: Date.now() };
   saving = saving.then(() => S.db.doc(`rooms/${S.room}/players/${S.pid}`).set(body)).catch(e => {
     if (e?.code === 'invalid_argument') { S.canWrite = false; joinNote(); }
@@ -710,7 +758,7 @@ function renderClass() {
   if ($('#v-class').hidden || !S.db) return;
   const ps = S.players;
   $('#clsEmpty').hidden = ps.length > 0; $('#clsBody').hidden = ps.length === 0;
-  if (!ps.length) { $('#clsEmpty').textContent = 'Waiting for players. Results appear here live as each round is locked in.'; return; }
+  if (!ps.length) { $('#clsEmpty').textContent = S.db.finalOnly ? 'Waiting for players. Each player appears here when they finish all 5 rounds.' : 'Waiting for players. Results appear here live as each round is locked in.'; return; }
   const all = ps.flatMap(p => p.rounds);
   const byRound = [...Array(ROUNDS)].map((_, i) => ps.map(p => p.rounds[i]).filter(Boolean));
   const pActual = all.filter(r => r.actual > AVG_SVC).length / all.length * 100;
