@@ -223,7 +223,6 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
 <!-- JOIN -->
 <section id="v-join" class="wrap">
   <div class="ticket"><div class="stub">Take a<br>number</div><div class="big">#01</div></div>
-  <span class="eyebrow">A game about the inspection paradox</span>
   <h1>Now Serving</h1>
   <p>You walk into a shop with one counter. Someone is already being served. <strong>Will they take longer or shorter than the average customer?</strong> Play 5 rounds and see how the class does.</p>
   <div class="facts">
@@ -619,7 +618,7 @@ function lockIn() {
   save();
   $('#askCard').hidden = true;
   if (r.found.fin > r.T + 35) r.reveal1 = r.found.fin + 5;
-  $('#stripCap').textContent = 'Inspection paradox: long services cover more of the clock, so more people walk in during them. The customer being served is in red.';
+  $('#stripCap').textContent = 'Long services cover more of the clock, so more people walk in during them. The customer being served is in red.';
   const done = r.found.fin - 1e-6; // keep them at the counter in the final frame
   animate(r.T, done, 2200, t => renderAt(r, t, true)).then(() => {
     renderAt(r, done, true);
