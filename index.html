@@ -178,7 +178,7 @@ th:first-child,td:first-child{text-align:left}
 .grid2>*{min-width:0}
 .headline{font:800 clamp(22px,4vw,34px)/1.15 var(--f-display);font-stretch:108%;text-wrap:balance}
 .headline em{font-style:normal;color:var(--accent)}
-.code{font:400 clamp(48px,12vw,96px)/1 var(--f-led);color:var(--led);background:var(--panel);border-radius:14px;padding:10px 20px;letter-spacing:.06em;align-self:flex-start}
+.code{font:400 clamp(36px,9vw,72px)/1 var(--f-led);color:var(--led);background:var(--panel);border-radius:14px;padding:10px 20px;letter-spacing:.06em;align-self:flex-start}
 ol.lb{margin:0;padding:0;list-style:none;counter-reset:lb}
 ol.lb li{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);counter-increment:lb}
 ol.lb li::before{content:counter(lb);font:600 13px var(--f-mono);color:var(--muted);width:24px}
@@ -225,8 +225,8 @@ ol.lb li.me{font-weight:600;color:var(--accent)}
   </div>
   <p class="note">Both times are exponential with one server.</p>
   <form id="joinForm" class="card" novalidate>
-    <div><label for="nameIn">Nickname</label><input type="text" id="nameIn" maxlength="20" autocomplete="off" placeholder="e.g. Little's Law"></div>
-    <div><label for="roomIn">Room code</label><input type="text" id="roomIn" maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="From your instructor"></div>
+    <div><label for="nameIn">Nickname</label><input type="text" id="nameIn" maxlength="20" autocomplete="off" placeholder="e.g. Little's Law" aria-describedby="nameHelp"><p class="note" id="nameHelp" style="margin-top:6px">Use a nickname, not your real name. Everyone in the room sees it on the leaderboard.</p></div>
+    <div><label for="roomIn">Room code</label><input type="text" id="roomIn" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="From your instructor"></div>
     <button class="primary" id="startBtn" type="submit">Take a number</button>
     <p class="note" id="joinMsg"></p>
   </form>
@@ -735,14 +735,17 @@ function drawQR(code) {
   $('#qrUrl').textContent = url;
   box.hidden = false;
 }
+// 8 characters from an alphabet without look-alikes (no I, O, 0, 1): about a trillion possible rooms
 function newCode() {
-  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-  let s = ''; for (let i = 0; i < 3; i++) s += A[Math.floor(Math.random() * A.length)];
-  return s + Math.floor(10 + Math.random() * 90);
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const r = new Uint32Array(8); crypto.getRandomValues(r);
+  return [...r].map(v => A[v % A.length]).join('');
 }
+// rooms saved before codes got longer are replaced with a fresh one
+const hostRoom = () => { const c = ls.get('ns-host-room'); return c && c.length >= 8 ? c : newCode(); };
 $('#newRoom').addEventListener('click', () => setHostRoom(newCode()));
 $('#toPlay').addEventListener('click', () => { S.host = false; $('#roomIn').value = S.room; show('v-join'); });
-$('#toHost').addEventListener('click', () => { setHostRoom(ls.get('ns-host-room') || newCode()); openClass(true); });
+$('#toHost').addEventListener('click', () => { setHostRoom(hostRoom()); openClass(true); });
 
 function gridOf(svg, filled, total) {
   const rows = Math.max(1, Math.ceil(total / 10));
@@ -832,7 +835,7 @@ document.addEventListener('pointerleave', () => { tip.hidden = true; });
 
 // ---------- boot ----------
 joinNote();
-if (hash.toLowerCase() === 'host') { setHostRoom(ls.get('ns-host-room') || newCode()); openClass(true); }
+if (hash.toLowerCase() === 'host') { setHostRoom(hostRoom()); openClass(true); }
 })();
 </script>
 
