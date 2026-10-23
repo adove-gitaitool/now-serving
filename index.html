@@ -618,7 +618,7 @@ function lockIn() {
   save();
   $('#askCard').hidden = true;
   if (r.found.fin > r.T + 35) r.reveal1 = r.found.fin + 5;
-  $('#stripCap').textContent = 'Long services cover more of the clock, so more people walk in during them. The customer being served is in red.';
+  $('#stripCap').textContent = 'The customer being served is in red.';
   const done = r.found.fin - 1e-6; // keep them at the counter in the final frame
   animate(r.T, done, 2200, t => renderAt(r, t, true)).then(() => {
     renderAt(r, done, true);
